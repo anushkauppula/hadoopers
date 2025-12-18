@@ -1,0 +1,611 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{float} % for [H] figures
+
+\title{Milestone 3 Report\\
+River--Ocean Plastic Pollution Analytics with HYCOM and Global Weather Data}
+\author{Sathyanarayana Mallipudi \and Anushka Uppula \and SiddharthSai Myneni}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Implementation Steps}
+
+This section describes the end-to-end implementation for our project
+\emph{River--Ocean Plastic Pollution Analytics with HYCOM and Global Weather Data}.
+The goal is that any reader can reproduce the full pipeline on a similar
+environment (local Python + Jupyter + CSV/NetCDF files) without major issues.
+
+\subsection{Environment Setup}
+
+\begin{enumerate}
+  \item \textbf{Base environment:}
+        We used a Windows 11 laptop with Python~3.12 and Jupyter Notebook
+        (via Anaconda). All code was organized in a
+        \texttt{river\_ocean\_plastic\_project/} folder with a Git repository.
+
+  \item \textbf{Install Python packages:}
+        The analysis relies on standard scientific Python libraries plus a few
+        geospatial and NetCDF tools:
+\begin{verbatim}
+pip install pandas numpy matplotlib seaborn geopandas xarray netcdf4
+\end{verbatim}
+        Optionally, \texttt{jupyterlab} can be installed if the user prefers it.
+
+  \item \textbf{Project structure:}
+        We created the following folder layout:
+        \begin{itemize}
+          \item \texttt{data/raw/} -- original CSV and NetCDF files
+                (rivers, plastic emissions, HYCOM, weather, risk scenarios).
+          \item \texttt{data/processed/} -- merged and cleaned CSVs
+                (e.g., \texttt{merged\_rivers.csv}, \texttt{country\_risk.csv}).
+          \item \texttt{notebooks/} -- Jupyter notebooks for exploration and testing.
+          \item \texttt{src/} -- reusable Python scripts (loading, cleaning, plotting).
+          \item \texttt{figures/} -- final PNG figures for Milestone 3
+                (one per goal plus an intervention summary).
+        \end{itemize}
+
+  \item \textbf{Reproducible imports:}
+        Each notebook starts with a common import block:
+\begin{verbatim}
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set(style="whitegrid")
+\end{verbatim}
+        This ensures that all plots share the same visual style and
+        the code runs consistently across goals.
+\end{enumerate}
+
+\subsection{Data Acquisition and Storage}
+
+\begin{enumerate}
+  \item \textbf{River plastic datasets:}
+        We combined several public datasets based on
+        Lebreton/Schmidt river plastic emissions
+        and country-level mismanaged plastic waste.
+        The main CSVs used were:
+        \begin{itemize}
+          \item \texttt{global\_rivers\_dataset.csv} -- river geometry, mouth coordinates,
+                discharge and estimated plastic leakage.
+          \item \texttt{country\_mismanaged\_waste.csv} -- mismanaged plastic waste
+                and total plastic generation per country.
+        \end{itemize}
+        These files were saved under \texttt{data/raw/}.
+
+  \item \textbf{HYCOM ocean current data:}
+        We downloaded HYCOM ocean model outputs (current magnitude and direction)
+        around major river mouths. These were provided as NetCDF files and stored in
+        \texttt{data/raw/hycom/}. We used \texttt{xarray} and \texttt{netCDF4} to
+        extract current speed at each river mouth location.
+
+  \item \textbf{Global weather dataset:}
+        We used the Kaggle \texttt{GlobalWeatherRepository.csv} dataset, which
+        provides gridded rainfall, temperature, humidity and air quality
+        (PM2.5) at global coordinates. This file was stored as
+        \texttt{data/raw/GlobalWeatherRepository.csv}.
+
+  \item \textbf{Risk scenarios (2015--2060):}
+        To analyze long-term plastic risk we created or curated a
+        \texttt{plastic\_risk\_2015\_2060.csv} file containing, for each
+        river or river basin:
+        \begin{itemize}
+          \item plastic leakage to rivers for 2015 and 2060
+                (\texttt{Plastic\_to\_River\_2015\_tons},
+                \texttt{Plastic\_to\_River\_2060\_tons}),
+          \item mismanaged waste in 2015 and 2060,
+          \item a pre-computed \texttt{Risk\_Score\_Change} per country.
+        \end{itemize}
+
+  \item \textbf{Central loading script:}
+        A single Python module \texttt{src/data\_loading.py} exposes
+        functions such as \texttt{load\_rivers()}, \texttt{load\_weather()},
+        \texttt{load\_hycom()}, and \texttt{load\_risk\_scenarios()} which
+        read the files into \texttt{pandas} or \texttt{xarray} objects.
+\end{enumerate}
+
+\subsection{Preprocessing and Data Quality Checks}
+
+We applied consistent cleaning and quality checks before computing any metrics.
+
+\begin{enumerate}
+  \item \textbf{River dataset cleaning:}
+        Duplicates were removed based on river name and mouth coordinates.
+        Units were normalized (e.g., converting plastic emissions into
+        metric tons per year). Obvious outliers were inspected manually.
+
+  \item \textbf{Merging river plastic and country data:}
+        Rivers were linked to their primary country using a \texttt{Country}
+        column and aggregated to produce \texttt{merged\_rivers\_df}, a
+        central DataFrame containing river name, country, plastic emissions,
+        and HYCOM current speed variables.
+
+  \item \textbf{Weather aggregation:}
+        The weather dataset was aggregated to country level by averaging
+        rainfall (\texttt{precip\_mm}), temperature, humidity and
+        \texttt{air\_quality\_PM2.5} over all grid cells in each country.
+        The result was stored as \texttt{weather\_country\_df}.
+
+  \item \textbf{Risk scenario alignment:}
+        Risk scenario records were aligned with river and country names
+        used in the other datasets. We computed derived variables such as:
+        \begin{itemize}
+          \item \texttt{Risk\_Score\_Change} (difference between 2015 and 2060),
+          \item country-level means of risk change for comparison.
+        \end{itemize}
+
+  \item \textbf{Final preprocessed views:}
+        The main tables used across all six goals are:
+        \begin{itemize}
+          \item \texttt{merged\_rivers\_df} -- river plastic + HYCOM currents,
+          \item \texttt{country\_plastic\_df} -- country totals of river plastic,
+          \item \texttt{weather\_country\_df} -- rainfall and PM2.5 per country,
+          \item \texttt{risk\_df} -- risk scenarios 2015 vs 2060,
+          \item \texttt{risk\_scores\_df} -- computed plastic–current risk scores.
+        \end{itemize}
+\end{enumerate}
+
+\subsection{Goal-wise Implementation}
+
+Below we summarize how each goal is implemented in Python.
+Function names here correspond to the functions defined in
+our main analysis script.
+
+\subsubsection*{Goal 1: Top Plastic-Polluting Rivers and Countries}
+
+\begin{enumerate}
+  \item \textbf{Sorting and ranking:}
+        From \texttt{merged\_rivers\_df} we sorted rivers by
+        \texttt{plastic\_tons} in descending order and selected
+        the top 10 rivers.
+  \item \textbf{Country aggregation:}
+        Using \texttt{groupby("Country")} we summed plastic emissions
+        to obtain country-level totals and ordered countries by
+        descending contributions.
+  \item \textbf{Map preparation:}
+        For rivers with mouth latitude and longitude available,
+        we plotted river locations on a simple world scatter map with
+        marker size proportional to plastic emissions.
+  \item \textbf{Figure export:}
+        All subplots were combined into a single \texttt{matplotlib}
+        figure and exported as
+        \texttt{goal1\_top\_rivers\_analysis.png}
+        into the \texttt{figures/} folder.
+\end{enumerate}
+
+\subsubsection*{Goal 2: Ocean Currents at River Mouths and Plastic--Current Interaction}
+
+\begin{enumerate}
+  \item \textbf{Current speed extraction:}
+        We joined river mouth coordinates with HYCOM current data
+        to derive a \texttt{current\_speed\_ms} column per river.
+  \item \textbf{Current speed distribution:}
+        A histogram of current speeds showed how many rivers fall
+        into very slow, slow, moderate, or fast current regimes.
+  \item \textbf{Plastic vs current scatter:}
+        We created a scatter plot of \texttt{plastic\_tons}
+        vs \texttt{current\_speed\_ms} and computed the Pearson correlation
+        between both variables.
+  \item \textbf{Current categories:}
+        Rivers were assigned a current category using
+        \texttt{pd.cut} with bins
+        \((0,0.1], (0.1,0.2], (0.2,0.5], (0.5,2]\)
+        to study how average plastic emissions vary across speed classes.
+  \item \textbf{Visualization:}
+        These analyses were combined into the figure
+        \texttt{goal2\_ocean\_currents\_analysis.png}.
+\end{enumerate}
+
+\subsubsection*{Goal 3: Country-Level Plastic Contributions and Mismanaged Waste}
+
+\begin{enumerate}
+  \item \textbf{Country totals:}
+        From \texttt{merged\_rivers\_df} we computed total
+        \texttt{plastic\_tons} per country and identified the
+        top 15 contributors.
+  \item \textbf{Linking mismanaged waste:}
+        We merged country totals with the mismanaged waste dataset
+        based on country names and used the latest available year.
+  \item \textbf{Correlation between mismanaged waste and river plastic:}
+        We created a scatter plot of mismanaged waste
+        (percentage of global mismanaged plastic) vs river plastic
+        emissions (tons), and annotated core countries such as
+        the Philippines, India, Malaysia and China.
+  \item \textbf{Regional placeholder:}
+        Because we did not yet integrate population or regional
+        mapping data, we reserved one panel in the figure as
+        a placeholder explaining that per-capita or regional
+        analysis would require additional datasets.
+  \item \textbf{Top 5 countries chart:}
+        A simple bar chart summarizes the top 5 countries by river
+        plastic emissions.
+\end{enumerate}
+
+\subsubsection*{Goal 4: Weather Influence on River Plastic Leakage}
+
+\begin{enumerate}
+  \item \textbf{Rainfall distribution:}
+        Using \texttt{GlobalWeatherRepository.csv} we plotted a histogram
+        of rainfall values (\texttt{precip\_mm}) to understand global
+        precipitation patterns and highlighted the mean.
+  \item \textbf{Temperature vs humidity:}
+        We created a scatter plot of temperature vs humidity,
+        colored by rainfall, to show typical atmospheric states.
+  \item \textbf{Country-level weather vs river plastic:}
+        After aggregating weather by country, we merged it with
+        country-level river plastic totals and plotted:
+        \begin{itemize}
+          \item average rainfall vs river plastic emissions,
+          \item average PM2.5 vs river plastic emissions.
+        \end{itemize}
+        For each relationship we computed the Pearson correlation
+        and displayed the value directly on the plot.
+  \item \textbf{Figure export:}
+        All four panels were saved as
+        \texttt{goal4\_weather\_influence.png}.
+\end{enumerate}
+
+\subsubsection*{Goal 5: Plastic Risk Scenarios (2015 vs 2060)}
+
+\begin{enumerate}
+  \item \textbf{Average plastic and waste (2015 vs 2060):}
+        From \texttt{risk\_df} we calculated average
+        \texttt{Plastic\_to\_River\_2015\_tons} and
+        \texttt{Plastic\_to\_River\_2060\_tons}, as well as
+        average mismanaged waste in 2015 and 2060.
+        These were plotted as paired bars.
+  \item \textbf{Risk score change distribution:}
+        The \texttt{Risk\_Score\_Change} column was visualized
+        with a histogram to show how many rivers or countries
+        are projected to experience large increases or decreases
+        in risk.
+  \item \textbf{Top 10 countries by increased risk:}
+        We computed country-level averages of
+        \texttt{Risk\_Score\_Change} and plotted the top 10
+        countries in a horizontal bar chart.
+  \item \textbf{River-level 2015 vs 2060 plastic:}
+        A scatter plot of 2015 vs 2060 plastic leakage per river
+        shows whether most rivers are projected to increase or
+        decrease in plastic emissions.
+  \item \textbf{Figure export:}
+        The final four-panel figure was saved as
+        \texttt{goal5\_risk\_scenarios.png}.
+\end{enumerate}
+
+\subsubsection*{Goal 6: Plastic--Current Risk Score for River Mouths}
+
+\begin{enumerate}
+  \item \textbf{Risk score definition:}
+        For each river with both plastic and current data, we computed:
+        \[
+          \text{Risk} = 0.6 \times \text{Plastic\_Norm}
+                      + 0.4 \times \text{InverseCurrent\_Norm},
+        \]
+        where plastic emissions and inverse current speed were both
+        min–max normalized to \([0,1]\).
+        The final score was scaled to a 0--100 range.
+  \item \textbf{Risk categories:}
+        We assigned discrete categories
+        (Low, Medium, High, Critical) using fixed thresholds on the
+        0--100 scale.
+  \item \textbf{Score distribution and matrix:}
+        A histogram shows the distribution of risk scores.
+        A scatter plot of plastic emissions vs current speed,
+        colored by risk score, illustrates how high plastic and
+        slow currents combine into high risk.
+  \item \textbf{Top rivers and countries:}
+        We plotted the top 10 rivers by risk score and the top
+        countries by average river risk (with total plastic plotted
+        on a secondary axis).
+  \item \textbf{Figure export:}
+        These views were exported as
+        \texttt{goal6\_risk\_score\_analysis.png}.
+\end{enumerate}
+
+\section{Results and Discussion}
+
+In this section we present the results for each goal. For each goal we
+include the final figure generated from the main analysis notebook.
+
+\subsection{Goal 1: Top Plastic-Polluting Rivers and Countries}
+
+Figure 1 shows the ranking of rivers and countries by
+plastic emissions, along with a simple map of river mouth locations.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{goal1_top_rivers_analysis.png}
+    \caption{Goal 1 -- Top plastic-polluting rivers, country contributions,
+    and global river mouth locations.}
+    \label{fig:goal1}
+\end{figure}
+
+The Pasig river appears as the highest emitting river in our dataset,
+and the Philippines dominates the country-level totals. The map
+highlights that many of the worst rivers are clustered in a few coastal
+regions, which supports the idea of geographically targeted interventions.
+
+\subsection{Goal 2: Ocean Currents at River Mouths and Plastic--Current Interaction}
+
+Figure 2 summarizes the distribution of ocean current speeds,
+the relationship between current speed and plastic leakage, and how
+average plastic emissions vary across speed categories.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{goal2_ocean_currents_analysis.png}
+    \caption{Goal 2 -- Ocean current speeds at river mouths and their
+    relationship with river plastic emissions.}
+    \label{fig:goal2}
+\end{figure}
+
+Although the sample currently includes only a limited number of rivers
+with full HYCOM coverage, the plots suggest that very slow currents are
+associated with higher plastic accumulation at the river mouth, while
+faster currents tend to disperse plastic more quickly offshore. The
+correlation value is displayed in the bottom-right panel for transparency.
+
+\subsection{Goal 3: Country-Level Plastic Contributions and Mismanaged Waste}
+
+Figure 3 combines several views of country-level plastic
+contributions and mismanaged waste.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{goal3_country_contributions.png}
+    \caption{Goal 3 -- Country-level plastic contributions, mismanaged
+    waste vs river plastic, and top contributing countries.}
+    \label{fig:goal3}
+\end{figure}
+
+The top-left chart confirms that a small set of countries account for a
+large share of global river plastic emissions. The mismanaged waste vs
+river plastic scatter indicates that countries with high mismanaged
+waste percentages (e.g., the Philippines, India, Malaysia, China)
+tend to have substantial river emissions as well. The bottom-left
+panel explicitly notes that per-capita or regional analysis is not
+included yet and would require additional datasets, which we plan to
+explore in future work.
+
+\subsection{Goal 4: Weather Influence on River Plastic Leakage}
+
+Figure 4 illustrates how rainfall, temperature, humidity
+and air pollution relate to river plastic emissions.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{goal4_weather_influence.png}
+    \caption{Goal 4 -- Weather and air quality influence on river
+    plastic leakage.}
+    \label{fig:goal4}
+\end{figure}
+
+The rainfall histogram reveals that most grid cells experience very low
+daily rainfall, with occasional heavy rainfall events. The temperature–humidity
+scatter shows typical climate regimes captured by the global weather dataset.
+At country level, we observe a modest positive correlation between
+average rainfall and river plastic emissions, and a very weak
+relationship between PM2.5 and river plastic. These findings suggest
+that rainfall intensity may influence plastic leakage pulses, but
+policy and waste management still play the dominant role.
+
+\subsection{Goal 5: Plastic Risk Scenarios (2015 vs 2060)}
+
+Figure 5 presents our scenario analysis comparing 2015 and
+2060 plastic risk.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{goal5_risk_scenarios.png}
+    \caption{Goal 5 -- Plastic risk scenarios for 2015 vs 2060 and
+    top countries by risk increase.}
+    \label{fig:goal5}
+\end{figure}
+
+On average, both plastic leakage to rivers and mismanaged waste are
+projected to increase by 2060 under the baseline assumptions. The
+distribution of \texttt{Risk\_Score\_Change} shows a wide spread: some
+rivers are expected to improve slightly while others become much worse.
+The top-10 list of countries by increased risk includes
+Bangladesh, DR Congo, Vietnam, the Philippines, Nigeria and others.
+The bottom-right scatter confirms that many rivers move toward higher
+plastic loads over time.
+
+\subsection{Goal 6: Plastic--Current Risk Score for River Mouths}
+
+Figure 6 focuses on the combined plastic--current risk
+score, which helps prioritize specific rivers and countries.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{goal6_risk_score_analysis.png}
+    \caption{Goal 6 -- Plastic--current risk score distribution,
+    matrix, and top rivers and countries.}
+    \label{fig:goal6}
+\end{figure}
+
+The histogram shows two extreme examples in the current subset:
+one river with very high risk (high plastic, slow currents)
+and another with very low risk (lower plastic, faster currents).
+The risk matrix visually reinforces the intuition that high plastic
+and low current speed create the most problematic conditions.
+Country-level averages indicate that Thailand and the Philippines
+emerge as high-priority countries once current patterns are
+explicitly considered.
+
+\subsection*{Intervention Trade-off Illustration}
+
+In addition to the six core goals, we created a simple intervention
+comparison chart (Figure 7) showing the relative
+effectiveness and cost of four intervention types:
+river mouth barriers, waste management improvements, policy regulations,
+and public awareness campaigns.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{summary_intervention_analysis.png}
+    \caption{Illustrative comparison of intervention effectiveness and
+    relative cost for plastic pollution mitigation.}
+    \label{fig:interventions}
+\end{figure}
+
+Although these values are illustrative, the chart helps connect
+our analytical results to possible real-world actions by comparing
+which interventions deliver the most impact per unit cost.
+
+\subsection{Discussion of Big Data Metrics}
+
+We evaluated our project in terms of common Big Data characteristics
+(5Vs) and practical system metrics.
+
+\subsubsection*{5Vs for Our Project}
+
+\begin{itemize}
+  \item \textbf{Volume:}
+        The project combines thousands of rivers, global weather
+        grids and multi-decadal risk scenarios. While the current
+        CSV and NetCDF files fit on a laptop, the pipeline is designed
+        to scale to larger HYCOM domains and additional years.
+
+  \item \textbf{Velocity:}
+        Our analysis is batch-oriented: new HYCOM or weather data can
+        be ingested periodically and the pipeline re-run. The structure
+        (separate loading, cleaning and analysis modules) allows future
+        extension to near-real-time updates.
+
+  \item \textbf{Variety:}
+        We integrated heterogeneous data types:
+        vector rivers, gridded ocean currents, gridded weather,
+        and country-level socioeconomic indicators. Handling
+        multiple coordinate systems and units was a key challenge.
+
+  \item \textbf{Veracity:}
+        Data quality was improved through duplicate removal,
+        unit checks, outlier inspection and consistency checks
+        between river and country totals. We also explicitly show
+        where data coverage is partial (for example, limited HYCOM
+        coverage) to avoid over-interpreting results.
+
+  \item \textbf{Value:}
+        The final outputs provide high-value insights:
+        which rivers and countries matter most, how currents
+        influence plastic accumulation, how risk could evolve
+        toward 2060, and where interventions may be most impactful.
+\end{itemize}
+
+\subsubsection*{Other Metrics}
+
+\begin{itemize}
+  \item \textbf{Data quality:}
+        Cleaning steps ensured consistent units, reduced duplicates
+        and handled missing values gracefully. Country name matching
+        and alignment across datasets were crucial to avoid silent errors.
+
+  \item \textbf{Latency and processing time:}
+        On our environment, loading and processing all datasets,
+        including risk scenarios, completes within a few seconds
+        per goal, which is acceptable for iterative research workflows.
+
+  \item \textbf{Resource utilization:}
+        A single laptop is sufficient for the current datasets.
+        However, the code can be moved into a distributed environment
+        (e.g., Spark or Dask) if we later incorporate global multi-year
+        NetCDF archives at full resolution.
+
+  \item \textbf{Security:}
+        All datasets are public and non-sensitive. The project is
+        self-contained in a local folder and can be shared via
+        a private Git repository without exposing credentials.
+
+  \item \textbf{Cost:}
+        Because we relied on public datasets and local computation,
+        the monetary cost is essentially zero. Cloud compute could
+        be introduced later for larger-scale experiments.
+\end{itemize}
+
+\section{Conclusions}
+
+In this Milestone 3 report we implemented an end-to-end big data pipeline
+for river–ocean plastic pollution analytics. Starting from raw
+river plastic, HYCOM ocean currents, global weather data and
+long-term risk scenarios, we:
+
+\begin{itemize}
+  \item identified the top plastic-polluting rivers and countries (Goal 1),
+  \item quantified how ocean currents at river mouths interact with plastic
+        leakage (Goal 2),
+  \item analyzed country-level contributions and linked them with mismanaged
+        waste (Goal 3),
+  \item explored how rainfall, climate and air quality correlate with river
+        plastic emissions (Goal 4),
+  \item compared plastic risk scenarios between 2015 and 2060 and identified
+        countries with the largest projected risk increase (Goal 5), and
+  \item built a combined plastic--current risk score to prioritize rivers
+        and countries for intervention (Goal 6).
+\end{itemize}
+
+Taken together, these goals show how integrating physical oceanography,
+weather, and waste management data can support data-driven decisions on
+where to invest in plastic pollution mitigation. The current pipeline
+already produces actionable rankings and visualizations, and it can be
+extended with per-capita metrics, finer HYCOM coverage, and more detailed
+policy scenarios in future work.
+
+% ==============================
+% REFERENCES
+% ==============================
+\section*{References}
+\begin{enumerate}
+    \item Lebreton, L., van der Zwet, J., Damsteeg, J. W., Slat, B., Andrady, A., \& Reisser, J. (2017). River plastic emissions to the world’s oceans. \textit{Nature Communications}, 8, 15611.
+    \item Meijer, L. J., van Emmerik, T., van der Ent, R., Schmidt, C., \& Lebreton, L. (2021). More than 1000 rivers account for 80\% of global riverine plastic emissions into the ocean. \textit{Science Advances}, 7(18), eaaz5803.
+    \item Geyer, R., Jambeck, J. R., \& Law, K. L. (2017). Production, use, and fate of all plastics ever made. \textit{Science Advances}, 3(7), e1700782.
+    \item Hyun, S., \& Hogan, P. (2008). HYCOM (HYbrid Coordinate Ocean Model): Data User’s Manual. Naval Research Laboratory.
+    \item Copernicus Marine Service. (2025). Global ocean currents and sea surface height data. \url{https://marine.copernicus.eu}
+    \item World Bank. (2022). Global rainfall and climate data. \url{https://climateknowledgeportal.worldbank.org}
+    \item Jambeck, J. R., Geyer, R., Wilcox, C., Siegler, T. R., Perryman, M., Andrady, A., ... \& Law, K. L. (2015). Plastic waste inputs from land into the ocean. \textit{Science}, 347(6223), 768--771.
+\end{enumerate}
+
+% ==============================
+% TEAM INDIVIDUAL CONTRIBUTIONS
+% ==============================
+\section*{Team Individual Contributions}
+
+\subsection*{Sathyanarayana Mallipudi}
+\begin{itemize}
+    \item Led overall project coordination and milestone planning.
+    \item Developed the preprocessing pipeline for HYCOM and rainfall datasets.
+    \item Implemented Goal 1 (River Mouths and Ocean Currents Integration) and Goal 4 (Seasonal Current Patterns).
+    \item Created visualizations for current-river interaction and seasonal variability.
+    \item Wrote sections on data acquisition, preprocessing, and Goal 1/4 results.
+\end{itemize}
+
+\subsection*{Anushka Uppula}
+\begin{itemize}
+    \item Managed dataset integration and quality assurance.
+    \item Implemented Goal 2 (Rainfall Influence) and Goal 3 (Leakage Index).
+    \item Performed statistical analysis and correlation studies.
+    \item Developed the leakage index formula and country-level risk ranking.
+    \item Contributed to the results and discussion sections for Goals 2 and 3.
+\end{itemize}
+
+\subsection*{SiddharthSai Myneni}
+\begin{itemize}
+    \item Designed and implemented Goal 5 (Risk Scenarios) and Goal 6 (Cold-Start Solutions).
+    \item Built the clustering model for cold-start river estimation.
+    \item Created comparative visualizations for 2015 vs. 2060 scenarios.
+    \item Developed the modular workflow for data-poor region analysis.
+    \item Drafted the big data metrics discussion and conclusions.
+\end{itemize}
+
+\end{document}

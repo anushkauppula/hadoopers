@@ -1,0 +1,18 @@
+River Currents Analysis (HYCOM 2023 - Bay of Bengal Region)
+============================================================
+Total rivers processed: 70
+Rivers with valid current data: 17
+Mean current speed: 0.0566 m/s
+Max current speed: 0.1825 m/s
+
+Top 10 rivers by current speed:
+Tonle Sap: 0.1825 m/s (u=0.0840, v=0.1620)
+Mekong: 0.1825 m/s (u=0.0840, v=0.1620)
+Mahäna Nadï: 0.1716 m/s (u=-0.1120, v=0.1300)
+Godävari: 0.1401 m/s (u=0.0960, v=-0.1020)
+Penner: 0.0441 m/s (u=0.0030, v=0.0440)
+Tel: 0.0371 m/s (u=-0.0360, v=0.0090)
+Mahaweli: 0.0364 m/s (u=-0.0130, v=-0.0340)
+Mahaweli: 0.0364 m/s (u=-0.0130, v=-0.0340)
+Indravati: 0.0344 m/s (u=0.0340, v=0.0050)
+Palar: 0.0277 m/s (u=-0.0120, v=-0.0250)

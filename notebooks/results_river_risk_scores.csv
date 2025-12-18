@@ -1,0 +1,3 @@
+River,Country,plastic_tons,avg_speed_ms,plastic_norm,current_inv_norm,risk_score,risk_score_scaled,risk_category
+Chao Phraya,Thailand,0.408389129,0.0399,1.0,1.0,1.0,100.0,Critical
+Tambo,Philippines,0.255243206,0.1322,0.0,0.0,0.0,0.0,Low

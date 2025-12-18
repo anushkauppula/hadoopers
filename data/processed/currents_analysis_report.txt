@@ -1,0 +1,33 @@
+River Currents Analysis Report
+============================================================
+
+Analysis Date: 2025-12-04 20:11:19
+HYCOM Files Processed: 6
+Files: uv3z_08-31-2024.nc4, uv3z_09-01-2024.nc4, uv3z_09-02-2024.nc4, uv3z_09-03-2024.nc4, uv3z_09-04-2024.nc4, uv3z_09-05-2024.nc4
+
+HYCOM Region: Lat [-80.0°, 90.0°], Lon [0.0°, 359.9°]
+Rivers Analyzed: 1387
+Rivers with Valid Data: 523
+
+Overall Statistics:
+  Mean Current Speed: 0.0309 m/s
+  Std Dev: 0.0366 m/s
+  Range: 0.0000 to 0.2306 m/s
+
+Top 10 Rivers by Current Speed:
+ 1. Gan                            China                Avg: 0.2306 m/s  Max: 0.2463 m/s  Days: 12
+ 2. Yong                           China                Avg: 0.2136 m/s  Max: 0.2613 m/s  Days: 6
+ 3. Yu                             China                Avg: 0.2136 m/s  Max: 0.2613 m/s  Days: 6
+ 4. Mogami                         Japan                Avg: 0.1982 m/s  Max: 0.2193 m/s  Days: 6
+ 5. Punguè                         Mozambique           Avg: 0.1734 m/s  Max: 0.2249 m/s  Days: 6
+ 6. Gamtoos                        South Africa         Avg: 0.1614 m/s  Max: 0.2732 m/s  Days: 6
+ 7. Hong                           China                Avg: 0.1600 m/s  Max: 0.2235 m/s  Days: 6
+ 8. Saint Lawrence                 Canada               Avg: 0.1553 m/s  Max: 0.2420 m/s  Days: 6
+ 9. Caledon                        South Africa         Avg: 0.1484 m/s  Max: 0.2009 m/s  Days: 6
+10. Hongshui                       China                Avg: 0.1438 m/s  Max: 0.1892 m/s  Days: 6
+
+Files Generated:
+  1. river_currents_detailed_2024.csv - Detailed daily measurements
+  2. river_currents_summary_2024.csv - River-wise statistics
+  3. river_currents_simple_2024.csv - Simplified daily data
+  4. currents_analysis_report.txt - This report
